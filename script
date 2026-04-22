@@ -1,0 +1,7 @@
+import bpy
+
+def moveVertex():
+    bpy.data.objects["Cube"].data.vertices[0].co.x += 1.0
+    
+for i in range(10):
+    moveVertex()
