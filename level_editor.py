@@ -22,17 +22,28 @@ class MYADDON_OT_export_scene(bpy.types.Operator):
     bl_label = "シーン出力"
     bl_description = "シーン情報をExportします"
 
+    # オペレータ シーン出力
+class MYADDON_OT_export_scene(bpy.types.Operator):
+    bl_idname = "myaddon.myaddon_ot_export_scene"
+    bl_label = "シーン出力"
+    bl_description = "シーン情報をExportします"
+
     def execute(self, context):
         print("シーン情報をExportします")
 
-        # シーン内のオブジェクトについて
-        for object in bpy.context.scene.objects:
-            print(object.type + " - " + object.name)
+        # シーン内の全オブジェクトを取得し、通し番号を割り振る辞書を作成
+        # key: オブジェクト名(またはオブジェクト自身), value: 通し番号
+        obj_list = list(bpy.context.scene.objects)
+        obj_indices = {obj: index for index, obj in enumerate(obj_list)}
+
+        # 情報を走査して出力
+        for object in obj_list:
+            current_idx = obj_indices[object]
+            print(f"[{current_idx}] {object.type} - {object.name}")
 
             # ローカルトランスフォーム行列から平行移動、回転、拡縮を抽出
-            # 型は Vector, Quaternion, Vector
             trans, rot, scale = object.matrix_local.decompose()
-            # 回転を Quaternion から Euler（3軸での回転角）に変換
+            # 回転を Quaternion から Eulerに変換
             rot = rot.to_euler()
             # ラジアンから度数法に変換
             rot.x = math.degrees(rot.x)
@@ -40,12 +51,17 @@ class MYADDON_OT_export_scene(bpy.types.Operator):
             rot.z = math.degrees(rot.z)
 
             # トランスフォーム情報を表示
-            print("Trans(%f, %f, %f)" % (trans.x, trans.y, trans.z))
-            print("Rot(%f, %f, %f)" % (rot.x, rot.y, rot.z))
-            print("Scale(%f, %f, %f)" % (scale.x, scale.y, scale.z))
-            # 親オブジェクトの名前を表示
-            if object.parent:
-                print("Parent:" + object.parent.name)
+            print("  Trans(%f, %f, %f)" % (trans.x, trans.y, trans.z))
+            print("  Rot(%f, %f, %f)" % (rot.x, rot.y, rot.z))
+            print("  Scale(%f, %f, %f)" % (scale.x, scale.y, scale.z))
+            
+            # 親オブジェクトの通し番号を判定して持たせる
+            if object.parent and object.parent in obj_indices:
+                parent_idx = obj_indices[object.parent]
+                print(f"  ParentIndex: {parent_idx} (Name: {object.parent.name})")
+            else:
+                # 親がいない（ルートオブジェクト）の場合は -1 とする
+                print("  ParentIndex: -1")                
             # オブジェクトとの区切りを入れるための空白
             print()
 
