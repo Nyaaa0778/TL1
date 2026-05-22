@@ -18,7 +18,10 @@ bl_info = {
     "category": "Object"
 }
 
-# オペレータ シーン出力
+# =========================================================================
+# オペレータ（実際の処理を定義するクラス群）
+# =========================================================================
+
 class MYADDON_OT_export_scene(bpy.types.Operator, bpy_extras.io_utils.ExportHelper):
     bl_idname = "myaddon.myaddon_ot_export_scene"
     bl_label = "シーン出力"
@@ -28,13 +31,15 @@ class MYADDON_OT_export_scene(bpy.types.Operator, bpy_extras.io_utils.ExportHelp
     filename_ext = ".scene"
 
     def write_and_print(self, file, text):
+        """コンソールとファイルの両方に同時に出力するヘルパー関数"""
+
         print(text) # コンソールに出力
-        file.write(text) # ファイルに出力
-        file.write('\n') # 改行を自動挿入
+        file.write(text + '\n') # ファイルに出力（改行を自動挿入）
 
     def parse_scene_recursive(self, file, obj, level):
         """シーン解析用再帰関数"""
 
+        # 階層に合わせてタブでインデント
         indent = ''
         for i in range(level):
             indent += "\t"
@@ -42,6 +47,7 @@ class MYADDON_OT_export_scene(bpy.types.Operator, bpy_extras.io_utils.ExportHelp
         # オブジェクト名を書き込み
         self.write_and_print(file, indent + f"[{level}] {obj.type} - {obj.name}")
         trans, rot, scale = obj.matrix_local.decompose()
+
         # 回転を Quaternion からEuler（3軸での回転角）に変換
         rot = rot.to_euler()
         # ラジアンから度数法に変換
@@ -61,7 +67,8 @@ class MYADDON_OT_export_scene(bpy.types.Operator, bpy_extras.io_utils.ExportHelp
             self.parse_scene_recursive(file, child, level + 1)
 
     def export(self, context):
-        """ファイルに出力"""
+        """書き出しのメイン処理"""
+
         print("シーン情報出力中... %r" % self.filepath)
 
         # ファイルをテキスト形式で書き出し用にオープン
@@ -93,8 +100,9 @@ class MYADDON_OT_export_scene(bpy.types.Operator, bpy_extras.io_utils.ExportHelp
 
         return {'FINISHED'}
 
-# オペレータ 頂点を伸ばす
 class MYADDON_OT_stretch_vertex(bpy.types.Operator):
+    """特定の頂点を伸ばすオペレータ"""
+
     bl_idname = "myaddon.myaddon_ot_stretch_vertex"
     bl_label = "頂点を伸ばす"
     bl_description = "頂点座標を引っ張って伸ばします"
@@ -110,14 +118,15 @@ class MYADDON_OT_stretch_vertex(bpy.types.Operator):
         # オペレータの命令終了通知
         return {'FINISHED'}
 
-# オペレータ ICO球生成
 class MYADDON_OT_create_ico_sphere(bpy.types.Operator):
+    """ICO球を生成するオペレータ"""
+
     bl_idname = "myaddon.myaddon_ot_create_object"
     bl_label = "ICO球生成"
     bl_description = "ICO球を生成します"
 
     # リドゥ / アンドゥ（Ctrl + Shift + Z / Ctrl + Z）可能オプション
-    bl_option = {'REGISTER', 'UNDO'}
+    bl_options = {'REGISTER', 'UNDO'}
 
     # メニューを実行したときに呼ばれる関数
     def execute(self, context):
@@ -127,8 +136,13 @@ class MYADDON_OT_create_ico_sphere(bpy.types.Operator):
         # オペレータの命令終了通知
         return {'FINISHED'}
 
-# トップバーの拡張メニュー
+# =========================================================================
+# UIメニュー（画面上部への表示設定）
+# =========================================================================
+
 class TOPBAR_MT_my_menu(bpy.types.Menu):
+    """トップバーの拡張メニュー"""
+
     # Blenderがクラスを識別する為の固有の文字列
     bl_idname = "TOPBAR_MT_my_menu"
     # メニューのラベルとして表示される文字列
@@ -164,8 +178,35 @@ class TOPBAR_MT_my_menu(bpy.types.Menu):
 
     # 既存のメニューにサブメニューを追加
     def submenu(self, context):
-        # ID指定でサブメニューを追加
+        # 既存のメニューにサブメニューを追加するための関数
         self.layout.menu(TOPBAR_MT_my_menu.bl_idname)
+
+# =========================================================================
+# パネル
+# =========================================================================
+
+class OBJECT_PT_file_name(bpy.types.Panel):
+    """オブジェクトのファイルネームパネル"""
+
+    bl_idname = "OBJECT_PT_file_name"
+    bl_label = "FileName"
+    bl_space_type = "PROPERTIES"
+    bl_region_type = "WINDOW"
+    bl_context = "object"
+
+    # サブメニューの描画
+    def draw(self, context):
+        # パネルに項目を追加
+        self.layout.operator(MYADDON_OT_stretch_vertex.bl_idname, 
+                             text=MYADDON_OT_stretch_vertex.bl_label)
+        self.layout.operator(MYADDON_OT_create_ico_sphere.bl_idname, 
+                             text=MYADDON_OT_create_ico_sphere.bl_label)
+        self.layout.operator(MYADDON_OT_export_scene.bl_idname, 
+                             text=MYADDON_OT_export_scene.bl_label)
+
+# =========================================================================
+# 登録・解除（Blender起動・終了時の処理）
+# =========================================================================
 
 # Blenderに登録するクラスリスト
 classes = (
@@ -173,6 +214,7 @@ classes = (
     MYADDON_OT_stretch_vertex,
     MYADDON_OT_create_ico_sphere,
     TOPBAR_MT_my_menu,
+    OBJECT_PT_file_name
 )
 
 # Add-On有効化時コールバック
