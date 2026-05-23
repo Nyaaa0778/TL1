@@ -2,6 +2,7 @@ import bpy
 
 # 標準数学モジュール
 import math
+import mathutils
 
 import bpy_extras
 
@@ -49,7 +50,7 @@ class MYADDON_OT_export_scene(bpy.types.Operator, bpy_extras.io_utils.ExportHelp
         for i in range(level):
             indent += "\t"
 
-        # 1. オブジェクトのタイプ名のみを出力
+        # オブジェクトのタイプ名のみを出力
         self.write_and_print(file, indent + obj.type)
         
         # トランスフォーム分解
@@ -62,16 +63,25 @@ class MYADDON_OT_export_scene(bpy.types.Operator, bpy_extras.io_utils.ExportHelp
         rot.y = math.degrees(rot.y)
         rot.z = math.degrees(rot.z)
         
-        # 2. トランスフォーム情報をフォーマット（T, R, S）で表示
+        # トランスフォーム情報をフォーマット（T, R, S）で表示
         self.write_and_print(file, indent + "T %f %f %f" % (trans.x, trans.y, trans.z))
         self.write_and_print(file, indent + "R %f %f %f" % (rot.x, rot.y, rot.z))
         self.write_and_print(file, indent + "S %f %f %f" % (scale.x, scale.y, scale.z))
         
-        # 3. カスタムプロパティ 'file_name' があれば "N パス" を出力
+        # カスタムプロパティ 'file_name' があれば "N パス" を出力
         if "file_name" in obj:
             self.write_and_print(file, indent + "N %s" % obj["file_name"])
             
-        # 4. データの区切りとして 'END' と空行を出力
+        # カスタムプロパティ 'collision'
+        if "collider" in object:
+            self.write_and_print(file, indent + "C %s" % object["collider"])
+            
+            # 文字列の頭文字と、取得したいプロパティ名をセットにして回す
+            for prefix, prop_name in [("CC", "collider_center"), ("CS", "collider_size")]:
+                self.write_and_print(file, indent + "CC %f %f %f" % tuple(object["collider_center"]))
+                self.write_and_print(file, indent + "CS %f %f %f" % tuple(object["collider_size"]))
+
+        # データの区切りとして 'END' と空行を出力
         self.write_and_print(file, indent + 'END')
         self.write_and_print(file, '')
 
@@ -230,8 +240,43 @@ class OBJECT_PT_file_name(bpy.types.Panel):
             self.layout.operator(MYADDON_OT_add_filename.bl_idname)
 
 # =========================================================================
-# コライダー描画
+# コライダー
 # =========================================================================
+
+class MYADDON_OT_add_collider(bpy.types.Operator):
+    bl_idname = "myaddon.myaddon_ot_add_collider"
+    bl_label = "コライダー 追加"
+    bl_description = "['collider'] カスタムプロパティを追加します"
+    # リドゥ / アンドゥ（Ctrl + Shift + Z / Ctrl + Z）可能オプション
+    bl_options = {"REGISTER", "UNDO"}
+
+    def execute(self, context):
+        # ['collider']カスタムプロパティを追加（初期値は"BOX"）
+        context.object["collider"] = "BOX"
+        context.object["collider_center"] = mathutils.Vector((0, 0, 0))
+        context.object["collider_size"] = mathutils.Vector((2, 2, 2))
+        return {"FINISHED"}
+
+class OBJECT_PT_collider(bpy.types.Panel):
+    """オブジェクトのコライダーパネル"""
+
+    bl_idname = "OBJECT_PT_collider"
+    bl_label = "Collider"
+    bl_space_type = "PROPERTIES"
+    bl_region_type = "WINDOW"
+    bl_context = "object"
+
+    # サブメニューの描画
+    def draw(self, context):
+        # パネルに項目を追加
+        if "collider" in context.object:
+            # 既にプロパティがあればプロパティを表示
+            self.layout.prop(context.object,'["collider"]', text = self.bl_label)
+            self.layout.prop(context.object,'["collider_center"]', text = "Center")
+            self.layout.prop(context.object,'["collider_size"]', text = "Size")
+        else:
+            # プロパティがなければ、プロパティを追加ボタンを表示
+            self.layout.operator(MYADDON_OT_add_collider.bl_idname)
 
 class DrawCollider:
     # 描画ハンドル
@@ -264,17 +309,33 @@ class DrawCollider:
 
         # 現在のシーンのオブジェクトリストを走査
         for object in bpy.context.scene.objects:
+
+            # コライダープロパティがなければ描画をスキップ
+            if not "collider" in object:
+                continue
+
+            # 中心点、サイズの変数宣言
+            center = mathutils.Vector((0, 0, 0))
+            size = mathutils.Vector((2, 2, 2))
+
+            # プロパティから値を取得
+            for i in range(3):
+                center[i] = object["collider_center"][i]
+                size[i] = object["collider_size"][i]
+
             # 追加前の頂点数
             start = len(vertices)
 
             # Boxの8頂点分回す
             for offset in offsets:
                 # オブジェクトの中心座標をコピー
-                pos = copy.copy(object.location)
+                pos = copy.copy(center)
                 # 中心座標を基準に拡張店ごとにずらす
-                pos[0] += offset[0] * size[0]
-                pos[1] += offset[1] * size[1]
-                pos[2] += offset[2] * size[2]
+                for i in range(3):
+                    pos[i] += offset[i] * size[i]    
+
+                # ローカル座標からワールド座標に変換
+                pos = object.matrix_world @ pos            
 
                 # 頂点データリストに座標を追加
                 vertices.append(pos)
@@ -335,7 +396,9 @@ classes = (
     MYADDON_OT_create_ico_sphere,
     TOPBAR_MT_my_menu,
     MYADDON_OT_add_filename,
-    OBJECT_PT_file_name
+    OBJECT_PT_file_name,
+    MYADDON_OT_add_collider,
+    OBJECT_PT_collider,
 )
 
 # Add-On有効化時コールバック
