@@ -122,7 +122,7 @@ class MYADDON_OT_export_scene(bpy.types.Operator, bpy_extras.io_utils.ExportHelp
         if "file_name" in object:
             json_object["file_name"] = object["file_name"]
 
-        # === 修正箇所：コライダーの座標系も変換する ===
+        # コライダーの座標系も変換
         if "collider" in object:
             c_center = object["collider_center"]
             c_size = object["collider_size"]
@@ -133,6 +133,10 @@ class MYADDON_OT_export_scene(bpy.types.Operator, bpy_extras.io_utils.ExportHelp
                 "center": (c_center[0], c_center[2], c_center[1]),
                 "size": (c_size[0], c_size[2], c_size[1])
             }
+
+        # 描画無効化オプション
+        if "disabled" in object:
+            json_object["disabled"] = bool(object["disabled"])
 
         # 1個分のjsonオブジェクトを親オブジェクトに登録
         data_parent.append(json_object)

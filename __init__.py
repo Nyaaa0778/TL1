@@ -14,7 +14,7 @@ bl_info = {
 import bpy
 
 # 各モジュールをインポート
-from . import export_scene, mesh_tools, properties, ui, collider
+from . import export_scene, mesh_tools, properties, ui, collider, disabled
 
 # 各モジュール内で定義された classes タプルを展開して結合
 classes = (
@@ -22,6 +22,7 @@ classes = (
     *mesh_tools.classes,
     *properties.classes,
     *ui.classes,
+    *disabled.classes,
 )
 
 # Add-On有効化時コールバック
