@@ -14,7 +14,7 @@ bl_info = {
 import bpy
 
 # 各モジュールをインポート
-from . import export_scene, mesh_tools, properties, ui, collider, disabled
+from . import export_scene, mesh_tools, properties, ui, collider, disabled, spawn
 
 # 各モジュール内で定義された classes タプルを展開して結合
 classes = (
@@ -23,6 +23,7 @@ classes = (
     *properties.classes,
     *ui.classes,
     *disabled.classes,
+    *spawn.classes,
 )
 
 # Add-On有効化時コールバック
@@ -32,6 +33,9 @@ def register():
 
     # メニューに項目を追加
     bpy.types.TOPBAR_MT_editor_menus.append(ui.TOPBAR_MT_my_menu.submenu)
+
+    # 3Dビューの「追加 > メッシュ」に登録
+    bpy.types.VIEW3D_MT_mesh_add.append(menu_func)
     
     # 3Dビューに描画関数を追加
     collider.DrawCollider.handle = bpy.types.SpaceView3D.draw_handler_add(
@@ -42,6 +46,9 @@ def register():
 
 # Add-On無効化時コールバック
 def unregister():
+    # 追加 > メッシュ」から削除（エラー防止のため最初に実行）
+    bpy.types.VIEW3D_MT_mesh_add.remove(menu_func)
+
     # メニューから項目を削除
     bpy.types.TOPBAR_MT_editor_menus.remove(ui.TOPBAR_MT_my_menu.submenu)
 
