@@ -14,7 +14,7 @@ bl_info = {
 import bpy
 
 # 各モジュールをインポート
-from . import export_scene, mesh_tools, properties, ui, collider, disabled, spawn
+from . import export_scene, mesh_tools, properties, ui, collider, disabled, spawn, replay_debugger
 
 # 各モジュール内で定義された classes タプルを展開して結合
 classes = (
@@ -24,12 +24,21 @@ classes = (
     *ui.classes,
     *disabled.classes,
     *spawn.classes,
+    *replay_debugger.classes,
 )
+
+# 3Dビューの「追加 > メッシュ」メニューに追加する項目
+def menu_func(self, context):
+    self.layout.separator()
+    self.layout.operator(spawn.MYADDON_OT_spawn_create_symbol.bl_idname, text="出現ポイントシンボルの作成")
 
 # Add-On有効化時コールバック
 def register():
     for cls in classes:
         bpy.utils.register_class(cls)
+
+    # タイムライン同期・ビューポート描画等のイベント登録
+    replay_debugger.register_handlers()
 
     # メニューに項目を追加
     bpy.types.TOPBAR_MT_editor_menus.append(ui.TOPBAR_MT_my_menu.submenu)
@@ -46,7 +55,10 @@ def register():
 
 # Add-On無効化時コールバック
 def unregister():
-    # 追加 > メッシュ」から削除（エラー防止のため最初に実行）
+    # タイムライン同期・ビューポート描画等のイベント登録解除
+    replay_debugger.unregister_handlers()
+
+    # 「追加 > メッシュ」から削除（エラー防止のため最初に実行）
     bpy.types.VIEW3D_MT_mesh_add.remove(menu_func)
 
     # メニューから項目を削除
