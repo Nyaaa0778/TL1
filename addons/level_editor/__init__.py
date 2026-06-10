@@ -14,7 +14,7 @@ bl_info = {
 import bpy
 
 # 各モジュールをインポート
-from . import export_scene, mesh_tools, properties, ui, collider, disabled, spawn
+from . import export_scene, mesh_tools, properties, ui, collider, disabled, spawn, timeline_sync
 
 # 各モジュール内で定義された classes タプルを展開して結合
 classes = (
@@ -24,7 +24,13 @@ classes = (
     *ui.classes,
     *disabled.classes,
     *spawn.classes,
+    *timeline_sync.classes,
 )
+
+# メッシュ追加メニュー用の関数
+def menu_func(self, context):
+    """3Dビューの「追加 > メッシュ」に項目を追加するためのコールバック"""
+    pass
 
 # Add-On有効化時コールバック
 def register():
@@ -42,6 +48,9 @@ def register():
         collider.DrawCollider.draw_collider, (), "WINDOW", "POST_VIEW"
     )
     
+    # タイムトラベルデバッガーのハンドラー登録
+    timeline_sync.register_handlers()
+    
     print("レベルエディタが有効化されました。")
 
 # Add-On無効化時コールバック
@@ -55,6 +64,9 @@ def unregister():
     # 3Dビューの描画関数を削除
     if collider.DrawCollider.handle:
         bpy.types.SpaceView3D.draw_handler_remove(collider.DrawCollider.handle, "WINDOW")
+    
+    # タイムトラベルデバッガーのハンドラー解除
+    timeline_sync.unregister_handlers()
     
     # 登録した順番と逆に解除していく（エラー防止）
     for cls in reversed(classes):
