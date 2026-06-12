@@ -77,7 +77,7 @@ def update_thread_curve(frame_idx):
         polyline = curve_data.splines.new('POLY')
         polyline.points.add(len(thread_nodes) - 1)
         for i, node in enumerate(thread_nodes):
-            polyline.points[i].co = (node[0], node[1], node[2], 1.0)
+            polyline.points[i].co = (node[0], node[2], node[1], 1.0)
 
 # タイムライン変更イベントハンドラ
 def frame_change_handler(scene):
@@ -185,15 +185,20 @@ class IMPORT_OT_replay_json(bpy.types.Operator):
             r = sobj.get("rotation", [0,0,0])
             s = sobj.get("scaling", [1,1,1])
             
+            # Y and Z axes swap to map DirectX Y-up coordinates to Blender Z-up coordinates
+            loc_swapped = (t[0], t[2], t[1])
+            rot_swapped = (r[0], r[2], r[1])
+            scale_swapped = (s[0], s[2], s[1])
+            
             if "sphere" in filename.lower():
-                bpy.ops.mesh.primitive_uv_sphere_add(location=t)
+                bpy.ops.mesh.primitive_uv_sphere_add(location=loc_swapped)
             else:
-                bpy.ops.mesh.primitive_cube_add(location=t)
+                bpy.ops.mesh.primitive_cube_add(location=loc_swapped)
                 
             bobj = bpy.context.active_object
             bobj.name = f"DebugStatic_{name}_{i}"
-            bobj.rotation_euler = r
-            bobj.scale = s
+            bobj.rotation_euler = rot_swapped
+            bobj.scale = scale_swapped
             
         # プレイヤー生成
         bpy.ops.mesh.primitive_uv_sphere_add(location=[0,0,0])
@@ -232,8 +237,8 @@ class IMPORT_OT_replay_json(bpy.types.Operator):
             pt = p_data.get("translation", [0,0,0])
             pr = p_data.get("rotation", [0,0,0])
             
-            player_obj.location = pt
-            player_obj.rotation_euler = pr
+            player_obj.location = (pt[0], pt[2], pt[1])
+            player_obj.rotation_euler = (pr[0], pr[2], pr[1])
             player_obj.keyframe_insert(data_path="location", frame=frame_idx)
             player_obj.keyframe_insert(data_path="rotation_euler", frame=frame_idx)
             
@@ -243,8 +248,10 @@ class IMPORT_OT_replay_json(bpy.types.Operator):
                 er = enemy.get("rotation", [0,0,0])
                 
                 e_name = f"DebugEnemy_{idx}"
+                et_swapped = (et[0], et[2], et[1])
+                er_swapped = (er[0], er[2], er[1])
                 if e_name not in enemy_objs:
-                    bpy.ops.mesh.primitive_uv_sphere_add(location=et)
+                    bpy.ops.mesh.primitive_uv_sphere_add(location=et_swapped)
                     e_obj = bpy.context.active_object
                     e_obj.name = e_name
                     e_obj.scale = [0.6, 0.6, 0.6]
@@ -256,8 +263,8 @@ class IMPORT_OT_replay_json(bpy.types.Operator):
                 else:
                     e_obj = enemy_objs[e_name]
                     
-                e_obj.location = et
-                e_obj.rotation_euler = er
+                e_obj.location = et_swapped
+                e_obj.rotation_euler = er_swapped
                 e_obj.keyframe_insert(data_path="location", frame=frame_idx)
                 e_obj.keyframe_insert(data_path="rotation_euler", frame=frame_idx)
                 
