@@ -3,6 +3,7 @@ import json
 import os
 import socket
 import blf
+from bpy_extras.view3d_utils import location_3d_to_region_2d
 
 # グローバル状態保持用
 loaded_replay_data = None
@@ -83,6 +84,7 @@ def update_thread_curve(frame_idx):
 def frame_change_handler(scene):
     frame_idx = scene.frame_current
     update_thread_curve(frame_idx)
+    update_custom_properties(frame_idx)
     
     global client
     if client.is_connected():
@@ -91,13 +93,55 @@ def frame_change_handler(scene):
             game_frame = 0
         client.send(f"FRAME {game_frame}\n")
 
+def update_custom_properties(frame_idx):
+    global loaded_replay_data
+    if not loaded_replay_data:
+        return
+        
+    frames = loaded_replay_data.get("frames", [])
+    game_frame = frame_idx - 1
+    
+    if game_frame < 0 or game_frame >= len(frames):
+        return
+        
+    frame_data = frames[game_frame]
+    enemies = frame_data.get("enemies", [])
+    events = frame_data.get("events", {})
+    bug_triggered = events.get("bug_trigger", False)
+    
+    # プレイヤーのカスタムプロパティ更新
+    player_obj = bpy.data.objects.get("DebugPlayer")
+    if player_obj:
+        player_obj["bug_triggered"] = bug_triggered
+        if bug_triggered:
+            player_obj["bug_message"] = events.get("msg", "")
+        else:
+            player_obj["bug_message"] = ""
+            
+    # 敵のカスタムプロパティ更新
+    for enemy in enemies:
+        idx = enemy.get("index", 0)
+        e_obj = bpy.data.objects.get(f"DebugEnemy_{idx}")
+        if e_obj:
+            e_obj["hp"] = enemy.get("hp", 100.0)
+            e_obj["anim_state"] = enemy.get("anim_state", "")
+            e_obj["bug_triggered"] = bug_triggered
+
 # ビューポートオーバーレイテキスト描画ハンドラ
 def draw_callback_px(self, context):
     global loaded_replay_data
     if not loaded_replay_data:
         return
         
-    scene = context.scene
+    # context が None の場合の安全なフォールバック
+    if context is None:
+        context = bpy.context
+        
+    # scene の取得
+    scene = getattr(context, "scene", None)
+    if not scene:
+        scene = bpy.context.scene
+        
     frame_idx = scene.frame_current
     game_frame = frame_idx - 1
     frames = loaded_replay_data.get("frames", [])
@@ -113,7 +157,7 @@ def draw_callback_px(self, context):
     blf.size(font_id, 16)
     blf.color(font_id, 1.0, 1.0, 1.0, 1.0)
     
-    # ヘッダー描画
+    # ヘッダー描画 (画面固定)
     blf.position(font_id, 20, 120, 0)
     blf.draw(font_id, "=== Live Game Replay Monitor ===")
     
@@ -128,7 +172,7 @@ def draw_callback_px(self, context):
         blf.position(font_id, 20, 95, 0)
         blf.draw(font_id, "Status: OK (Normal Execution)")
         
-    # 敵キャラのHP表示
+    # 画面左下の敵キャラ簡易リスト表示
     blf.color(font_id, 0.9, 0.9, 0.9, 1.0)
     y_pos = 70
     for enemy in enemies:
@@ -138,6 +182,85 @@ def draw_callback_px(self, context):
         blf.position(font_id, 20, y_pos, 0)
         blf.draw(font_id, f"Enemy {idx} HP: {hp:.1f} (Anim: {state})")
         y_pos -= 20
+
+    # 3D空間上の各オブジェクトの頭上に変数を描画
+    region = None
+    rv3d = None
+    
+    # context から直接の取得を試みる
+    if hasattr(context, "region") and hasattr(context, "space_data") and context.space_data and context.space_data.type == 'VIEW_3D':
+        region = context.region
+        rv3d = context.space_data.region_3d
+    else:
+        # コンテキストが描画領域外の可能性を考慮し、画面全体からアクティブな3Dビューポートを探す
+        for area in bpy.context.screen.areas:
+            if area.type == 'VIEW_3D':
+                for reg in area.regions:
+                    if reg.type == 'WINDOW':
+                        region = reg
+                        rv3d = area.spaces.active.region_3d
+                        break
+                if region:
+                    break
+
+    if not region or not rv3d:
+        return
+
+    # Playerの頭上表示
+    player_obj = bpy.data.objects.get("DebugPlayer")
+    if player_obj:
+        loc_3d = player_obj.location.copy()
+        loc_3d.z += 1.2 # Z-upでの高さオフセット
+        loc_2d = location_3d_to_region_2d(region, rv3d, loc_3d)
+        if loc_2d:
+            blf.size(font_id, 14)
+            blf.color(font_id, 0.3, 0.8, 1.0, 1.0) # シアン
+            blf.position(font_id, loc_2d.x - 30, loc_2d.y, 0)
+            blf.draw(font_id, "[Player]")
+            
+            # バグ検出時は警告も併記
+            if bug_triggered:
+                blf.size(font_id, 12)
+                blf.color(font_id, 1.0, 0.2, 0.2, 1.0)
+                blf.position(font_id, loc_2d.x - 50, loc_2d.y - 15, 0)
+                blf.draw(font_id, "! BUG AFFECTED !")
+
+    # 各Enemyの頭上表示
+    for enemy in enemies:
+        idx = enemy.get("index", 0)
+        e_obj = bpy.data.objects.get(f"DebugEnemy_{idx}")
+        if e_obj:
+            loc_3d = e_obj.location.copy()
+            loc_3d.z += 1.0
+            loc_2d = location_3d_to_region_2d(region, rv3d, loc_3d)
+            if loc_2d:
+                hp = enemy.get("hp", 100.0)
+                state = enemy.get("anim_state", "")
+                
+                # HP量に応じてカラー変化 (緑 -> 黄 -> 赤)
+                if hp > 50.0:
+                    blf.color(font_id, 0.2, 1.0, 0.2, 1.0) # 緑
+                elif hp > 20.0:
+                    blf.color(font_id, 1.0, 0.7, 0.2, 1.0) # 黄色/オレンジ
+                else:
+                    blf.color(font_id, 1.0, 0.2, 0.2, 1.0) # 赤
+                
+                blf.size(font_id, 13)
+                blf.position(font_id, loc_2d.x - 40, loc_2d.y + 15, 0)
+                blf.draw(font_id, f"Enemy {idx}")
+                
+                blf.color(font_id, 0.9, 0.9, 0.9, 1.0)
+                blf.position(font_id, loc_2d.x - 40, loc_2d.y, 0)
+                blf.draw(font_id, f"HP: {hp:.1f}")
+                
+                blf.color(font_id, 0.7, 0.7, 0.7, 1.0)
+                blf.position(font_id, loc_2d.x - 40, loc_2d.y - 15, 0)
+                blf.draw(font_id, f"Anim: {state}")
+                
+                if bug_triggered and state == "bugged":
+                    blf.color(font_id, 1.0, 0.1, 0.1, 1.0)
+                    blf.position(font_id, loc_2d.x - 45, loc_2d.y - 30, 0)
+                    blf.draw(font_id, "! BUG SOURCE !")
 
 # ------------------------------------------------------------------------
 # 演算オペレータ
@@ -269,6 +392,7 @@ class IMPORT_OT_replay_json(bpy.types.Operator):
                 e_obj.keyframe_insert(data_path="rotation_euler", frame=frame_idx)
                 
         update_thread_curve(1)
+        update_custom_properties(1)
         return {'FINISHED'}
 
 class CONNECT_OT_game_server(bpy.types.Operator):
@@ -284,6 +408,17 @@ class CONNECT_OT_game_server(bpy.types.Operator):
         if client.connect(ip, port):
             context.scene.socket_connected = True
             self.report({'INFO'}, "Successfully connected to Game Engine TCP Server.")
+            
+            # ロード中のリプレイログのパスを送信
+            rel_path = context.scene.replay_filepath
+            client.send(f"LOAD {rel_path}\n")
+            
+            # 現在のフレームに同期させる
+            frame_idx = context.scene.frame_current
+            game_frame = frame_idx - 1
+            if game_frame < 0:
+                game_frame = 0
+            client.send(f"FRAME {game_frame}\n")
         else:
             context.scene.socket_connected = False
             self.report({'ERROR'}, f"Failed to connect to Game Engine at {ip}:{port}")
