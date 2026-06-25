@@ -451,6 +451,8 @@ def unregister_handlers():
 def menu_func(self, context):
     self.layout.separator()
     self.layout.operator(spawn.MYADDON_OT_spawn_create_symbol.bl_idname, text="出現ポイントシンボルの作成")
+    self.layout.operator(spawn.MYADDON_OT_spawn_enemy_create_symbol.bl_idname, text="エネミー出現ポイントの作成")
+
 
 # Add-On有効化時コールバック
 def register():

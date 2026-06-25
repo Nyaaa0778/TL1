@@ -14,6 +14,8 @@ class TOPBAR_MT_my_menu(bpy.types.Menu):
         self.layout.operator("myaddon.myaddon_ot_create_object", text="ICO球生成")
         # トップバーのサブメニューにシンボル作成オペレータを追加
         self.layout.operator("myaddon.myaddon_ot_spawn_create_symbol", text="出現ポイントシンボルの作成")
+        self.layout.operator("myaddon.spawn_enemy_create_symbol", text="エネミー出現ポイントの作成")
+
 
     def submenu(self, context):
         self.layout.menu(TOPBAR_MT_my_menu.bl_idname)
