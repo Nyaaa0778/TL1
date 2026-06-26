@@ -18,7 +18,7 @@ import socket
 import blf
 
 # 各モジュールをインポート
-from . import export_scene, mesh_tools, properties, ui, collider, disabled, spawn, replay_debugger
+from . import export_scene, mesh_tools, properties, ui, collider, disabled, spawn, replay_debugger, import_scene, rail_drawer
 
 def register_handlers():
     replay_debugger.register_handlers()
@@ -29,6 +29,7 @@ def unregister_handlers():
 # 各モジュール内で定義された classes タプルを展開して結合
 classes = (
     *export_scene.classes,
+    *import_scene.classes,
     *mesh_tools.classes,
     *properties.classes,
     *ui.classes,
@@ -63,6 +64,7 @@ def register():
     collider.DrawCollider.handle = bpy.types.SpaceView3D.draw_handler_add(
         collider.DrawCollider.draw_collider, (), "WINDOW", "POST_VIEW"
     )
+    rail_drawer.register_handlers()
     
     print("レベルエディタが有効化されました。")
 
@@ -80,6 +82,7 @@ def unregister():
     # 3Dビューの描画関数を削除
     if collider.DrawCollider.handle:
         bpy.types.SpaceView3D.draw_handler_remove(collider.DrawCollider.handle, "WINDOW")
+    rail_drawer.unregister_handlers()
     
     # 登録した順番と逆に解除していく（エラー防止）
     for cls in reversed(classes):

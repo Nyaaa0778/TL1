@@ -162,6 +162,25 @@ class MYADDON_OT_export_scene(bpy.types.Operator, bpy_extras.io_utils.ExportHelp
 
         # ノード名
         json_object_root["name"] = "scene"
+
+        # レールオブジェクトを探して rail_spline を書き出し
+        rail_obj = bpy.context.scene.objects.get("Rail")
+        if rail_obj and rail_obj.type == 'CURVE':
+            rail_points = []
+            for spline in rail_obj.data.splines:
+                if spline.type in {'POLY', 'NURBS'}:
+                    for pt in spline.points:
+                        wpos = rail_obj.matrix_world @ pt.co.xyz
+                        gpos = [wpos.x, wpos.z, wpos.y]
+                        rail_points.append(gpos)
+                elif spline.type == 'BEZIER':
+                    for pt in spline.bezier_points:
+                        wpos = rail_obj.matrix_world @ pt.co
+                        gpos = [wpos.x, wpos.z, wpos.y]
+                        rail_points.append(gpos)
+            if rail_points:
+                json_object_root["rail_spline"] = rail_points
+
         # オブジェクトリストを作成
         json_object_root["objects"] = list()
 
@@ -169,6 +188,10 @@ class MYADDON_OT_export_scene(bpy.types.Operator, bpy_extras.io_utils.ExportHelp
         for object in bpy.context.scene.objects:
             # 親オブジェクトがあるものはスキップ
             if(object.parent):
+                continue
+
+            # レールオブジェクトは objects リストからスキップする
+            if object.name == "Rail" or object.type == 'CURVE':
                 continue
 
             # シーン直下のオブジェクトをルートモード（深さ 0）として再帰関数で走査

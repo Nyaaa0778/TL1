@@ -7,6 +7,7 @@ class TOPBAR_MT_my_menu(bpy.types.Menu):
 
     def draw(self, context):
         # 相互インポートを防ぐため、bl_idnameを文字列で直接指定
+        self.layout.operator("myaddon.myaddon_ot_import_scene", text="シーン読込")
         self.layout.operator("myaddon.myaddon_ot_export_scene", text="シーン出力")
         self.layout.separator()
         self.layout.operator("myaddon.myaddon_ot_stretch_vertex", text="頂点を伸ばす")
