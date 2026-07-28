@@ -445,8 +445,14 @@ class TAKEOVER_OT_game_state(bpy.types.Operator):
     def execute(self, context):
         global client
         if client.is_connected():
+            # テイクオーバー開始直前に現在のフレーム情報を再送して同期ズレを防ぐ
+            frame_idx = context.scene.frame_current
+            game_frame = frame_idx - 1
+            if game_frame < 0:
+                game_frame = 0
+            client.send(f"FRAME {game_frame}\n")
             client.send("TAKEOVER\n")
-            self.report({'INFO'}, "Sent TAKEOVER signal to Game Engine.")
+            self.report({'INFO'}, f"Sent FRAME {game_frame} and TAKEOVER signals to Game Engine.")
         else:
             self.report({'WARNING'}, "Cannot takeover. Socket is not connected.")
         return {'FINISHED'}
