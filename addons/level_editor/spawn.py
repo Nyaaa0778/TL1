@@ -119,6 +119,12 @@ class MYADDON_OT_spawn_enemy_create_symbol(bpy.types.Operator):
         else:
             obj.data.materials[0] = mat
 
+        # 出現時間を設定
+        frames_per_segment = getattr(context.scene, "timeline_frames_per_segment", 100.0)
+        if frames_per_segment <= 0.001:
+            frames_per_segment = 100.0
+        obj["spawn_time"] = context.scene.frame_current / frames_per_segment
+
         return {'FINISHED'}
 
 classes = (

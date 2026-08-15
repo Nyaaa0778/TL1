@@ -18,7 +18,7 @@ import socket
 import blf
 
 # 各モジュールをインポート
-from . import export_scene, mesh_tools, properties, ui, collider, disabled, spawn, replay_debugger, import_scene, rail_drawer
+from . import export_scene, mesh_tools, properties, ui, collider, disabled, spawn, replay_debugger, import_scene, rail_drawer, timeline_editor
 
 def register_handlers():
     replay_debugger.register_handlers()
@@ -36,6 +36,7 @@ classes = (
     *disabled.classes,
     *spawn.classes,
     *replay_debugger.classes,
+    *timeline_editor.classes,
 )
 
 
@@ -53,6 +54,7 @@ def register():
 
     # タイムライン同期・ビューポート描画等のイベント登録
     register_handlers()
+    timeline_editor.register()
 
     # メニューに項目を追加
     bpy.types.TOPBAR_MT_editor_menus.append(ui.TOPBAR_MT_my_menu.submenu)
@@ -72,6 +74,7 @@ def register():
 def unregister():
     # タイムライン同期・ビューポート描画等のイベント登録解除
     unregister_handlers()
+    timeline_editor.unregister()
 
     # 「追加 > メッシュ」から削除（エラー防止のため最初に実行）
     bpy.types.VIEW3D_MT_mesh_add.remove(menu_func)

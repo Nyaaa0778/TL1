@@ -51,6 +51,10 @@ class MYADDON_OT_export_scene(bpy.types.Operator, bpy_extras.io_utils.ExportHelp
         if "file_name" in obj:
             self.write_and_print(file, indent + "N %s" % obj["file_name"])
             
+        # カスタムプロパティ 'spawn_time'
+        if "spawn_time" in obj:
+            self.write_and_print(file, indent + "ST %f" % obj["spawn_time"])
+            
         # カスタムプロパティ 'collision'
         if "collider" in obj:
             self.write_and_print(file, indent + "C %s" % obj["collider"])
@@ -124,6 +128,10 @@ class MYADDON_OT_export_scene(bpy.types.Operator, bpy_extras.io_utils.ExportHelp
         # カスタムプロパティ 'file_name'
         if "file_name" in object:
             json_object["file_name"] = object["file_name"]
+
+        # カスタムプロパティ 'spawn_time'
+        if "spawn_time" in object:
+            json_object["spawn_time"] = float(object["spawn_time"])
 
         # コライダーの座標系も変換
         if "collider" in object:

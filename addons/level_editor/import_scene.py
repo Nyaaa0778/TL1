@@ -162,6 +162,9 @@ class MYADDON_OT_import_scene(bpy.types.Operator, bpy_extras.io_utils.ImportHelp
         if "disabled" in data_obj:
             obj["disabled"] = int(data_obj["disabled"])
             
+        if "spawn_time" in data_obj:
+            obj["spawn_time"] = float(data_obj["spawn_time"])
+            
         if parent_obj:
             obj.parent = parent_obj
             
