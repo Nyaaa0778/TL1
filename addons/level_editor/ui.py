@@ -1,22 +1,28 @@
-import bpy
+﻿import bpy
 
 class TOPBAR_MT_my_menu(bpy.types.Menu):
     bl_idname = "TOPBAR_MT_my_menu"
     bl_label = "MyMenu"
-    bl_description = "拡張メニュー by Taro Kamata" # bl_infoの参照を避け、文字列で直接指定
+    bl_description = "拡張メニュー by Taro Kamata"
 
     def draw(self, context):
-        # 相互インポートを防ぐため、bl_idnameを文字列で直接指定
         self.layout.operator("myaddon.myaddon_ot_import_scene", text="シーン読込")
         self.layout.operator("myaddon.myaddon_ot_export_scene", text="シーン出力")
         self.layout.separator()
         self.layout.operator("myaddon.myaddon_ot_stretch_vertex", text="頂点を伸ばす")
         self.layout.separator()
         self.layout.operator("myaddon.myaddon_ot_create_object", text="ICO球生成")
-        # トップバーのサブメニューにシンボル作成オペレータを追加
-        self.layout.operator("myaddon.myaddon_ot_spawn_create_symbol", text="出現ポイントシンボルの作成")
-        self.layout.operator("myaddon.spawn_enemy_create_symbol", text="エネミー出現ポイントの作成")
-
+        self.layout.separator()
+        # シンボル作成オペレータ
+        self.layout.operator("myaddon.myaddon_ot_spawn_create_symbol", text="プレイヤー出現ポイント作成")
+        self.layout.operator("myaddon.spawn_enemy_create_symbol", text="突進エネミー出現ポイント作成")
+        
+        # 編隊エネミーサブメニュー/オペレーター
+        self.layout.operator_menu_enum(
+            "myaddon.spawn_formation_enemy_create_symbol",
+            "pattern",
+            text="編隊エネミー出現ポイント作成 (Drone)..."
+        )
 
     def submenu(self, context):
         self.layout.menu(TOPBAR_MT_my_menu.bl_idname)

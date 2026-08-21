@@ -1,4 +1,4 @@
-import bpy
+﻿import bpy
 import os
 
 class MYADDON_OT_spawn_import_symbol(bpy.types.Operator):
@@ -6,12 +6,10 @@ class MYADDON_OT_spawn_import_symbol(bpy.types.Operator):
     bl_label = "出現ポイントシンボルImport"
     bl_description = "出現ポイントのシンボルをImportします"
 
-    # 【修正1】タイポを修正 (Prottype -> Prototype)
     prototype_object_name = "PrototypePlayerSpawn"
     object_name = "PlayerSpawn"
 
     def execute(self, context):
-        # 重複ロード防止
         if bpy.data.objects.get(self.prototype_object_name) is not None:
             return {'CANCELLED'}
         
@@ -19,10 +17,8 @@ class MYADDON_OT_spawn_import_symbol(bpy.types.Operator):
         relative_path = "player/player.obj"
         full_path = os.path.join(addon_directory, relative_path)
 
-        # インポート前に選択状態をクリア
         bpy.ops.object.select_all(action='DESELECT')
 
-        # オブジェクトをインポート
         bpy.ops.wm.obj_import(
             'EXEC_DEFAULT',
             filepath=full_path,
@@ -31,7 +27,6 @@ class MYADDON_OT_spawn_import_symbol(bpy.types.Operator):
             up_axis='Y'
         )
         
-        # 回転を適用
         bpy.ops.object.transform_apply(
             location=False,
             rotation=True,
@@ -40,22 +35,16 @@ class MYADDON_OT_spawn_import_symbol(bpy.types.Operator):
             isolate_users=False
         )
 
-        # 【修正2】インポートされた「全て」のオブジェクトを取得
         imported_objects = context.selected_objects
-        
         if not imported_objects:
             return {'CANCELLED'}
 
-        # メインのオブジェクトの名前とカスタムプロパティを設定
         active_obj = context.active_object or imported_objects[0]
         active_obj.name = self.prototype_object_name
         active_obj["type"] = self.object_name
 
-        # 【修正3】読み込んだすべてのパーツをシーンから完全に隔離
         for obj in imported_objects:
-            obj.use_fake_user = True # 勝手に消えないように保護
-            
-            # 所属している「すべての」コレクションから除外（Outlinerから完全に消す）
+            obj.use_fake_user = True
             for coll in obj.users_collection:
                 coll.objects.unlink(obj)
         
@@ -64,7 +53,7 @@ class MYADDON_OT_spawn_import_symbol(bpy.types.Operator):
 class MYADDON_OT_spawn_create_symbol(bpy.types.Operator):
     bl_idname = "myaddon.myaddon_ot_spawn_create_symbol"
     bl_label = "出現ポイントシンボルの作成"
-    bl_description = "出現ポイントのシンボルを作成します"
+    bl_description = "プレイヤー出現ポイントのシンボルを作成します"
     bl_options = {'REGISTER', 'UNDO'}
 
     object_name = "PlayerSpawn"
@@ -84,19 +73,18 @@ class MYADDON_OT_spawn_create_symbol(bpy.types.Operator):
 
         object = spawn_object.copy()
         bpy.context.collection.objects.link(object)
-        
         object.name = self.object_name
 
         return {'FINISHED'}
     
 class MYADDON_OT_spawn_enemy_create_symbol(bpy.types.Operator):
     bl_idname = "myaddon.spawn_enemy_create_symbol"
-    bl_label = "エネミー出現ポイントの作成"
-    bl_description = "敵の出現ポイントを作成します"
+    bl_label = "突進エネミー出現ポイントの作成"
+    bl_description = "突進エネミー(Rusher)の出現ポイントを作成します"
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
-        # 赤いマテリアルの取得または作成
+        # 赤色マテリアルの取得または作成
         mat_name = "EnemySpawnMaterial"
         mat = bpy.data.materials.get(mat_name)
         if mat is None:
@@ -104,22 +92,18 @@ class MYADDON_OT_spawn_enemy_create_symbol(bpy.types.Operator):
             mat.use_nodes = True
             principled = next((n for n in mat.node_tree.nodes if n.type == 'BSDF_PRINCIPLED'), None)
             if principled:
-                # ベースカラーを赤（R:1.0, G:0.1, B:0.1, A:1.0）に設定
                 principled.inputs[0].default_value = (1.0, 0.1, 0.1, 1.0)
 
-        # 立方体の作成
         bpy.ops.mesh.primitive_cube_add(size=1.5)
         obj = context.active_object
-        obj.name = "Enemy"
+        obj.name = "Enemy_Rusher"
         obj["type"] = "PlayerSpawn"
         
-        # マテリアルを適用
         if len(obj.data.materials) == 0:
             obj.data.materials.append(mat)
         else:
             obj.data.materials[0] = mat
 
-        # 出現時間を設定
         frames_per_segment = getattr(context.scene, "timeline_frames_per_segment", 100.0)
         if frames_per_segment <= 0.001:
             frames_per_segment = 100.0
@@ -127,8 +111,58 @@ class MYADDON_OT_spawn_enemy_create_symbol(bpy.types.Operator):
 
         return {'FINISHED'}
 
+
+class MYADDON_OT_spawn_formation_enemy_create_symbol(bpy.types.Operator):
+    bl_idname = "myaddon.spawn_formation_enemy_create_symbol"
+    bl_label = "編隊エネミー出現ポイントの作成"
+    bl_description = "編隊飛行ドローンエネミー(Formation Drone)の出現ポイントを作成します"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    pattern: bpy.props.EnumProperty(
+        name="飛行パターン",
+        items=[
+            ('Wave', 'Wave (サイン波ウェーブ)', '上下左右に波打ちながら飛行する編隊'),
+            ('Circle', 'Circle (円旋回)', '円を描いて旋回しながら前進する編隊'),
+            ('Slalom', 'Slalom (スラローム蛇行)', '大きく左右にS字蛇行する編隊'),
+            ('FigureEight', 'FigureEight (8の字旋回)', '8の字を描きながら飛行する編隊'),
+        ],
+        default='Wave'
+    )
+
+    def execute(self, context):
+        # シアン色マテリアルの取得または作成
+        mat_name = "FormationDroneSpawnMaterial"
+        mat = bpy.data.materials.get(mat_name)
+        if mat is None:
+            mat = bpy.data.materials.new(name=mat_name)
+            mat.use_nodes = True
+            principled = next((n for n in mat.node_tree.nodes if n.type == 'BSDF_PRINCIPLED'), None)
+            if principled:
+                # シアン/スカイブルー色 (R:0.1, G:0.8, B:1.0, A:1.0)
+                principled.inputs[0].default_value = (0.1, 0.8, 1.0, 1.0)
+
+        # ドローン用の小型シンボル（1.0サイズ）
+        bpy.ops.mesh.primitive_cube_add(size=1.0)
+        obj = context.active_object
+        obj.name = f"Enemy_Formation_{self.pattern}"
+        obj["type"] = "PlayerSpawn"
+        
+        if len(obj.data.materials) == 0:
+            obj.data.materials.append(mat)
+        else:
+            obj.data.materials[0] = mat
+
+        frames_per_segment = getattr(context.scene, "timeline_frames_per_segment", 100.0)
+        if frames_per_segment <= 0.001:
+            frames_per_segment = 100.0
+        obj["spawn_time"] = context.scene.frame_current / frames_per_segment
+
+        return {'FINISHED'}
+
+
 classes = (
     MYADDON_OT_spawn_import_symbol,
     MYADDON_OT_spawn_create_symbol,
     MYADDON_OT_spawn_enemy_create_symbol,
-)
+    MYADDON_OT_spawn_formation_enemy_create_symbol,
+)

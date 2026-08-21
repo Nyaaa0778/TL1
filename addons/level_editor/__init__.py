@@ -1,4 +1,4 @@
-bl_info = {
+﻿bl_info = {
     "name": "LevelEditor",
     "author": "Taro Kamata",
     "version": (1, 0),
@@ -43,8 +43,13 @@ classes = (
 # 3Dビューの「追加 > メッシュ」メニューに追加する項目
 def menu_func(self, context):
     self.layout.separator()
-    self.layout.operator(spawn.MYADDON_OT_spawn_create_symbol.bl_idname, text="出現ポイントシンボルの作成")
-    self.layout.operator(spawn.MYADDON_OT_spawn_enemy_create_symbol.bl_idname, text="エネミー出現ポイントの作成")
+    self.layout.operator(spawn.MYADDON_OT_spawn_create_symbol.bl_idname, text="プレイヤー出現ポイント作成")
+    self.layout.operator(spawn.MYADDON_OT_spawn_enemy_create_symbol.bl_idname, text="突進エネミー出現ポイント作成")
+    self.layout.operator_menu_enum(
+        spawn.MYADDON_OT_spawn_formation_enemy_create_symbol.bl_idname,
+        "pattern",
+        text="編隊エネミー出現ポイント作成 (Drone)..."
+    )
 
 
 # Add-On有効化時コールバック
@@ -87,7 +92,7 @@ def unregister():
         bpy.types.SpaceView3D.draw_handler_remove(collider.DrawCollider.handle, "WINDOW")
     rail_drawer.unregister_handlers()
     
-    # 登録した順番と逆に解除していく（エラー防止）
+    # 登録した順と逆に解除していく（エラー防止）
     for cls in reversed(classes):
         bpy.utils.unregister_class(cls)
 

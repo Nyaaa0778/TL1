@@ -1,4 +1,4 @@
-import bpy
+﻿import bpy
 import mathutils
 from .rail_drawer import evaluate_spline
 
@@ -55,7 +55,7 @@ class MYADDON_OT_add_spawn_time(bpy.types.Operator):
 
 class MYADDON_OT_calc_closest_spawn_time(bpy.types.Operator):
     bl_idname = "myaddon.calc_closest_spawn_time"
-    bl_label = "最寄りのレール位置から時間を計算"
+    bl_label = "最近接のレール位置から時間を計算"
     bl_description = "このオブジェクトに最も近いレール上の位置から、最適な出現時間を自動計算します"
     bl_options = {"REGISTER", "UNDO"}
 
@@ -92,7 +92,6 @@ class MYADDON_OT_calc_closest_spawn_time(bpy.types.Operator):
         best_t = 0.0
         min_dist = float('inf')
         
-        # 二段階で探索（粗探索 -> 詳細探索）
         steps = (n - 1) * 100
         for i in range(steps + 1):
             t = (i / steps) * (n - 1)
@@ -102,17 +101,16 @@ class MYADDON_OT_calc_closest_spawn_time(bpy.types.Operator):
                 min_dist = dist
                 best_t = t
 
-        # Offset を引いて手前で出現させる
         offset = getattr(context.scene, "spawn_time_offset", 0.5)
         obj["spawn_time"] = max(0.0, best_t - offset)
-        self.report({'INFO'}, f"{obj.name} の出現時間をレール位置 {best_t:.3f} (オフセット引いて {obj['spawn_time']:.3f}) に自動設定しました。")
+        self.report({'INFO'}, f"{obj.name} の出現時間をレール位置 {best_t:.3f} (オフセット引いて {obj['spawn_time']:.3f}) に自動設定しました")
         return {"FINISHED"}
 
 
 class MYADDON_OT_auto_calc_all_spawn_times(bpy.types.Operator):
     bl_idname = "myaddon.auto_calc_all_spawn_times"
     bl_label = "全敵の出現時間を自動計算"
-    bl_description = "シーン内のすべての敵について、レール上の最寄り位置から出現時間を一括で自動計算します"
+    bl_description = "シーン内のすべての敵について、レール上の最近接位置から出現時間を一括で自動計算します"
     bl_options = {"REGISTER", "UNDO"}
     
     def execute(self, context):
@@ -153,7 +151,7 @@ class MYADDON_OT_auto_calc_all_spawn_times(bpy.types.Operator):
                 obj["spawn_time"] = max(0.0, best_t - offset)
                 count += 1
                 
-        self.report({'INFO'}, f"計 {count} 個のエネミーの出現時間を自動計算（オフセット適用）しました。")
+        self.report({'INFO'}, f"計 {count} 個のエネミーの出現時間を自動計算（オフセット適用）しました")
         return {'FINISHED'}
 
 
@@ -175,7 +173,7 @@ class MYADDON_OT_set_spawn_time_current_frame(bpy.types.Operator):
             frames_per_segment = 100.0
             
         obj["spawn_time"] = context.scene.frame_current / frames_per_segment
-        self.report({'INFO'}, f"{obj.name} の出現時間を現フレームから {obj['spawn_time']:.3f} に設定しました。")
+        self.report({'INFO'}, f"{obj.name} の出現時間を現フレームから {obj['spawn_time']:.3f} に設定しました")
         return {"FINISHED"}
 
 
@@ -200,24 +198,52 @@ class MYADDON_OT_jump_to_spawn_time(bpy.types.Operator):
 
 class MYADDON_OT_create_enemy_at_current_frame(bpy.types.Operator):
     bl_idname = "myaddon.create_enemy_at_current_frame"
-    bl_label = "現フレーム位置に敵を作成"
-    bl_description = "3Dカーソル位置にエネミー出現ポイントを作成し、出現時間を現フレームに設定します"
+    bl_label = "突進敵(Rusher)作成"
+    bl_description = "3Dカーソル位置に突進エネミー(Rusher)出現ポイントを作成し、出現時間を現フレームに設定します"
     bl_options = {"REGISTER", "UNDO"}
     
     def execute(self, context):
-        # 既存のエネミー出現ポイント作成処理を呼び出し
         bpy.ops.myaddon.spawn_enemy_create_symbol('EXEC_DEFAULT')
         obj = context.active_object
         if obj:
-            # 3Dカーソル位置に配置
             obj.location = context.scene.cursor.location
             frames_per_segment = context.scene.timeline_frames_per_segment
             if frames_per_segment <= 0.001:
                 frames_per_segment = 100.0
-            # 出現時間を現在のフレーム値で設定
             obj["spawn_time"] = context.scene.frame_current / frames_per_segment
-            self.report({'INFO'}, f"新規エネミーを生成し、出現時間を {obj['spawn_time']:.3f} に設定しました。")
+            self.report({'INFO'}, f"新規突進エネミーを生成し、出現時間を {obj['spawn_time']:.3f} に設定しました")
         return {'FINISHED'}
+
+
+class MYADDON_OT_create_formation_enemy_at_current_frame(bpy.types.Operator):
+    bl_idname = "myaddon.create_formation_enemy_at_current_frame"
+    bl_label = "編隊敵(Drone)作成"
+    bl_description = "3Dカーソル位置に編隊小型ドローン出現ポイントを作成し、出現時間を現フレームに設定します"
+    bl_options = {"REGISTER", "UNDO"}
+
+    pattern: bpy.props.EnumProperty(
+        name="飛行パターン",
+        items=[
+            ('Wave', 'Wave (サイン波)', '上下左右に波打つウェーブ編隊'),
+            ('Circle', 'Circle (円旋回)', '円を描いて旋回する編隊'),
+            ('Slalom', 'Slalom (スラローム)', '左右に大きく蛇行する編隊'),
+            ('FigureEight', 'FigureEight (8の字)', '8の字を描く編隊'),
+        ],
+        default='Wave'
+    )
+    
+    def execute(self, context):
+        bpy.ops.myaddon.spawn_formation_enemy_create_symbol('EXEC_DEFAULT', pattern=self.pattern)
+        obj = context.active_object
+        if obj:
+            obj.location = context.scene.cursor.location
+            frames_per_segment = context.scene.timeline_frames_per_segment
+            if frames_per_segment <= 0.001:
+                frames_per_segment = 100.0
+            obj["spawn_time"] = context.scene.frame_current / frames_per_segment
+            self.report({'INFO'}, f"新規編隊エネミー({self.pattern})を生成し、出現時間を {obj['spawn_time']:.3f} に設定しました")
+        return {'FINISHED'}
+
 
 # -----------------------------------------------------------------------------
 # プレビューカメラ制御とタイムラインハンドラー
@@ -251,10 +277,8 @@ def preview_camera_handler(scene):
     spline_time = scene.frame_current / frames_per_segment
     spline_time = max(0.0, min(float(n - 1), spline_time))
     
-    # 座標の補間
     pos = evaluate_spline(points, spline_time)
     
-    # プレビューカメラオブジェクトの取得・作成
     cam_name = "PreviewCamera"
     cam_obj = scene.objects.get(cam_name)
     if not cam_obj:
@@ -264,7 +288,6 @@ def preview_camera_handler(scene):
         
     cam_obj.location = pos
     
-    # 接線からカメラの回転を計算（進行方向を向くように）
     t_ahead = spline_time + 0.01
     if t_ahead >= n - 1:
         t_ahead = spline_time - 0.01
@@ -275,9 +298,9 @@ def preview_camera_handler(scene):
         direction = pos_ahead - pos
         
     if direction.length > 0.0001:
-        # Blenderのカメラはローカル-Zが前方、Yが上
         rot_quat = direction.to_track_quat('-Z', 'Y')
         cam_obj.rotation_euler = rot_quat.to_euler()
+
 
 # -----------------------------------------------------------------------------
 # UI パネル定義
@@ -300,10 +323,33 @@ class VIEW3D_PT_spawn_timeline_editor(bpy.types.Panel):
         box.prop(scene, "spawn_time_offset")
         box.prop(scene, "preview_camera_follows_rail")
 
-        # 一括編集・作成用
-        row = layout.row(align=True)
-        row.operator("myaddon.create_enemy_at_current_frame", text="現在フレームで敵を作成", icon='ADD')
-        row.operator("myaddon.auto_calc_all_spawn_times", text="全エネミー時間を自動計算", icon='TRACKING')
+        # 敵作成ボタン（突進敵 & 編隊ドローン敵）
+        box_create = layout.box()
+        box_create.label(text="Create Enemy at Current Frame", icon='ADD')
+        
+        # 突進敵
+        row_rush = box_create.row(align=True)
+        row_rush.operator("myaddon.create_enemy_at_current_frame", text="突進敵 (Rusher)", icon='FORWARD')
+
+        # 編隊ドローン（4パターン）
+        box_create.label(text="編隊ドローン (Formation Drone):")
+        grid = box_create.grid_flow(row_major=True, columns=2, even_columns=True, even_rows=True, align=True)
+        
+        op_w = grid.operator("myaddon.create_formation_enemy_at_current_frame", text="Wave (波型)", icon='DRIVER')
+        op_w.pattern = 'Wave'
+        
+        op_c = grid.operator("myaddon.create_formation_enemy_at_current_frame", text="Circle (旋回)", icon='FILE_REFRESH')
+        op_c.pattern = 'Circle'
+        
+        op_s = grid.operator("myaddon.create_formation_enemy_at_current_frame", text="Slalom (蛇行)", icon='ANIM')
+        op_s.pattern = 'Slalom'
+        
+        op_8 = grid.operator("myaddon.create_formation_enemy_at_current_frame", text="8-Shape (8の字)", icon='CON_FOLLOWPATH')
+        op_8.pattern = 'FigureEight'
+
+        # 一括自動計算
+        layout.separator()
+        layout.operator("myaddon.auto_calc_all_spawn_times", text="全エネミー時間を自動計算", icon='TRACKING')
 
         # エネミー一覧
         enemies = []
@@ -311,7 +357,6 @@ class VIEW3D_PT_spawn_timeline_editor(bpy.types.Panel):
             if obj.get("type") == "PlayerSpawn" and "Enemy" in obj.name:
                 enemies.append(obj)
         
-        # 出現時間でソート
         enemies.sort(key=lambda o: o.get("spawn_time", 0.0))
 
         layout.separator()
@@ -321,15 +366,21 @@ class VIEW3D_PT_spawn_timeline_editor(bpy.types.Panel):
         for obj in enemies:
             row = col.box().row(align=True)
             
-            # 選択状況に応じたアイコン
             is_active = (context.active_object == obj)
             icon = 'OBJECT_DATAMODE' if is_active else 'OBJECT_DATA'
             
+            # 敵種別に応じたバッジ表示
+            display_name = obj.name
+            if "Formation" in obj.name or "Drone" in obj.name:
+                icon = 'SPHERE'
+            elif "Rusher" in obj.name:
+                icon = 'CONE'
+
             # 選択ボタン
-            op_select = row.operator("myaddon.select_scene_object", text=obj.name, icon=icon, emboss=False)
+            op_select = row.operator("myaddon.select_scene_object", text=display_name, icon=icon, emboss=False)
             op_select.object_name = obj.name
             
-            # 出現時間（カスタムプロパティ）の直接編集
+            # 出現時間（カスタムプロパティ）直接編集
             if "spawn_time" in obj:
                 row.prop(obj, '["spawn_time"]', text="Time")
             else:
@@ -342,7 +393,7 @@ class VIEW3D_PT_spawn_timeline_editor(bpy.types.Panel):
                 frames_per_segment = 100.0
             frame_val = int(obj.get("spawn_time", 0.0) * frames_per_segment)
             
-            op_jump = row.operator("myaddon.jump_to_spawn_time", text=f"F: {frame_val}", icon='TIME')
+            op_jump = row.operator("myaddon.jump_to_spawn_time", text=f"F:{frame_val}", icon='TIME')
             op_jump.object_name = obj.name
             
             op_set = row.operator("myaddon.set_spawn_time_current_frame", text="", icon='REC')
@@ -353,6 +404,7 @@ class VIEW3D_PT_spawn_timeline_editor(bpy.types.Panel):
             
             op_del = row.operator("myaddon.delete_scene_object", text="", icon='TRASH')
             op_del.object_name = obj.name
+
 
 # -----------------------------------------------------------------------------
 # 登録処理
@@ -367,6 +419,7 @@ classes = (
     MYADDON_OT_set_spawn_time_current_frame,
     MYADDON_OT_jump_to_spawn_time,
     MYADDON_OT_create_enemy_at_current_frame,
+    MYADDON_OT_create_formation_enemy_at_current_frame,
     VIEW3D_PT_spawn_timeline_editor,
 )
 
@@ -384,7 +437,7 @@ def register():
     )
     bpy.types.Scene.spawn_time_offset = bpy.props.FloatProperty(
         name="Spawn Time Offset",
-        description="最寄り位置からこの値だけ前倒しして（手前で）敵を出現させます（レールセグメント単位）",
+        description="最近接位置からこの値だけ前倒しして（手前で）敵を出現させます（レールセグメント単位）",
         default=0.5,
         min=0.0
     )
